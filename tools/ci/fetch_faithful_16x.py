@@ -47,7 +47,7 @@ def download_pack(cache_path: pathlib.Path) -> pathlib.Path:
 
 
 def downscale_2x_crisp(raw_png: bytes, rel_path: str) -> bytes:
-    if "gui/title/background/panorama_" in rel_path:
+    if "gui/title/background/panorama_" in rel_path or rel_path.startswith("textures/colormap/"):
         return raw_png
     with Image.open(io.BytesIO(raw_png)) as im:
         w, h = im.size

@@ -1640,6 +1640,8 @@ def generate_tables(root: pathlib.Path) -> None:
             "fog_color": 12638463,
             "water_color": 4159204,
             "water_fog_color": 329011,
+            "grass_color": 9551193,
+            "foliage_color": 7842607,
         },
         "attributes": overworld_attrs,
         "spawners": {},
