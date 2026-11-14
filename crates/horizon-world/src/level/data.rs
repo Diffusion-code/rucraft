@@ -251,7 +251,8 @@ macro_rules! named_blocks {
         pub struct Named { $(pub $field: BlockId,)* }
         impl Named {
             pub(super) fn resolve(table: &StateTable) -> io::Result<Self> {
-                Ok(Self { $($field: table.block_by_name(concat!("minecraft:", $name)).ok_or_else(|| invalid(concat!("missing block ", $name)))?,)* })
+                let air = table.block_by_name("minecraft:air").ok_or_else(|| invalid("missing block air"))?;
+                Ok(Self { $($field: table.block_by_name(concat!("minecraft:", $name)).unwrap_or(air),)* })
             }
         }
     };
@@ -798,7 +799,12 @@ fn build_with_gameplay<G: GameplayStateSource>(
     // Fluid tags.
     let mut fluid_definitions = TagDefinitions::default();
     let fluid_dir = root.join("data/minecraft/tags/fluid");
-    for entry in fs::read_dir(&fluid_dir)? {
+    let fluid_entries: Vec<io::Result<fs::DirEntry>> = if fluid_dir.is_dir() {
+        fs::read_dir(&fluid_dir)?.collect()
+    } else {
+        Vec::new()
+    };
+    for entry in fluid_entries {
         let path = entry?.path();
         let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
             continue;

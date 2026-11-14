@@ -23,26 +23,38 @@ impl TestTerrain {
                 .ok_or_else(|| format!("missing {name}"))?
                 .0)
         };
+        let stone = id("minecraft:stone")?;
+        let dirt = id("minecraft:dirt").unwrap_or(stone);
+        let grass = id("minecraft:grass_block").unwrap_or(dirt);
+        let water = id("minecraft:water").unwrap_or(0);
+        let sand = id("minecraft:sand").unwrap_or(dirt);
+        let bedrock = id("minecraft:bedrock").unwrap_or(stone);
+        let log = id("minecraft:oak_log").unwrap_or(stone);
+        let leaves = registry
+            .resolve(&horizon_world::chunk::BlockState {
+                name: "minecraft:oak_leaves".into(),
+                properties: [
+                    ("distance".to_owned(), "1".to_owned()),
+                    ("persistent".to_owned(), "false".to_owned()),
+                    ("waterlogged".to_owned(), "false".to_owned()),
+                ]
+                .into(),
+            })
+            .ok()
+            .or_else(|| registry.default_state("minecraft:oak_leaves"))
+            .map(|s| s.0)
+            .unwrap_or(0);
+        let short_grass = id("minecraft:short_grass").unwrap_or(0);
         Ok(Self {
-            stone: id("minecraft:stone")?,
-            dirt: id("minecraft:dirt")?,
-            grass: id("minecraft:grass_block")?,
-            water: id("minecraft:water")?,
-            sand: id("minecraft:sand")?,
-            bedrock: id("minecraft:bedrock")?,
-            log: id("minecraft:oak_log")?,
-            leaves: registry
-                .resolve(&horizon_world::chunk::BlockState {
-                    name: "minecraft:oak_leaves".into(),
-                    properties: [
-                        ("distance".to_owned(), "1".to_owned()),
-                        ("persistent".to_owned(), "false".to_owned()),
-                        ("waterlogged".to_owned(), "false".to_owned()),
-                    ]
-                    .into(),
-                })?
-                .0,
-            short_grass: id("minecraft:short_grass")?,
+            stone,
+            dirt,
+            grass,
+            water,
+            sand,
+            bedrock,
+            log,
+            leaves,
+            short_grass,
             plains: biomes.id("minecraft:plains"),
         })
     }

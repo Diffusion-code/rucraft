@@ -110,7 +110,9 @@ pub(crate) fn prepare_with_models(
     let mut placements = Vec::new();
     let mut states = Vec::new();
     for (index, (name, properties)) in GALLERY.iter().enumerate() {
-        let state = registry.resolve(&descriptor(name, properties))?;
+        let Ok(state) = registry.resolve(&descriptor(name, properties)) else {
+            continue;
+        };
         let actual = registry
             .state(state)
             .ok_or("missing gallery registry state")?;
