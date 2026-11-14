@@ -1333,7 +1333,14 @@ def generate_tables(root: pathlib.Path) -> None:
             rule = "never"
         else:
             rule = "never"
-        render_defs[spec["name"]] = {"rule": rule, "can_occlude": is_occ, "bars_tag": False}
+        state_ids = [e["sid"] for e in expanded if e["spec"]["name"] == spec["name"]]
+        render_defs[spec["name"]] = {
+            "rule": rule,
+            "can_occlude": is_occ,
+            "bars_tag": False,
+            "default": defaults[spec["name"]],
+            "states": state_ids,
+        }
     write_json(root / "model-states.json", model_states)
     write_json(root / "render-definitions.json", render_defs)
 
@@ -1449,26 +1456,94 @@ def generate_tables(root: pathlib.Path) -> None:
         ("minecraft:submerged_mining_speed", 0.2, 0.0, 20.0),
         ("minecraft:water_movement_efficiency", 0.0, 0.0, 1.0),
     ]
-    write_json(root / "attributes.json", [
-        {"id": aid, "default": f64_hex(d), "min": f64_hex(mn), "max": f64_hex(mx)}
-        for aid, d, mn, mx in attrs
-    ])
-    write_json(root / "player-float-ids.json", {"health": 9, "absorption": 15})
-    write_json(root / "damage-catalog.json", {
-        "minecraft:fall": ["fall", "when_caused_by_living_non_player", f32_hex(0.0), "hurt", "fall_variants"],
-        "minecraft:stalagmite": ["stalagmite", "when_caused_by_living_non_player", f32_hex(0.0), "hurt", "default"],
-        "minecraft:starve": ["starve", "when_caused_by_living_non_player", f32_hex(0.0), "hurt", "default"],
-        "minecraft:generic": ["generic", "when_caused_by_living_non_player", f32_hex(0.0), "hurt", "default"],
-        "minecraft:in_wall": ["inWall", "when_caused_by_living_non_player", f32_hex(0.0), "hurt", "default"],
-        "minecraft:drown": ["drown", "when_caused_by_living_non_player", f32_hex(0.0), "drowning", "default"],
-        "minecraft:lava": ["lava", "when_caused_by_living_non_player", f32_hex(0.1), "burning", "default"],
-        "minecraft:out_of_world": ["outOfWorld", "never", f32_hex(0.0), "hurt", "default"],
+    player_attr_bases = {aid: f64_hex(d) for aid, d, _, _ in attrs}
+    write_json(root / "attributes.json", {
+        "data_version": DATA_VERSION,
+        "attributes": [
+            {"id": aid, "default": f64_hex(d), "syncable": True, "min": f64_hex(mn), "max": f64_hex(mx)}
+            for aid, d, mn, mx in attrs
+        ],
+        "entities": {"minecraft:player": player_attr_bases},
     })
-    write_json(root / "damage-types.json", {})
-    write_json(root / "damage-tags.json", {})
-    write_json(root / "landing-definitions.json", {})
-    write_json(root / "entity-types.json", {})
+    write_json(root / "player-float-ids.json", {"health": 9, "absorption": 15})
+    damage_entries = [
+        ("minecraft:fall", "fall", "when_caused_by_living_non_player", 0.0, "hurt", "fall_variants"),
+        ("minecraft:stalagmite", "stalagmite", "when_caused_by_living_non_player", 0.0, "hurt", "default"),
+        ("minecraft:starve", "starve", "when_caused_by_living_non_player", 0.0, "hurt", "default"),
+        ("minecraft:generic", "generic", "when_caused_by_living_non_player", 0.0, "hurt", "default"),
+        ("minecraft:in_wall", "inWall", "when_caused_by_living_non_player", 0.0, "hurt", "default"),
+        ("minecraft:drown", "drown", "when_caused_by_living_non_player", 0.0, "drowning", "default"),
+        ("minecraft:lava", "lava", "when_caused_by_living_non_player", 0.1, "burning", "default"),
+        ("minecraft:out_of_world", "outOfWorld", "never", 0.0, "hurt", "default"),
+    ]
+    write_json(root / "damage-catalog.json", {
+        "data_version": DATA_VERSION,
+        "types": [
+            {
+                "id": did,
+                "message_id": msg,
+                "exhaustion": f32_hex(exh),
+                "scaling": scaling,
+                "effects": eff,
+                "death_message_type": dmsg,
+            }
+            for did, msg, scaling, exh, eff, dmsg in damage_entries
+        ],
+    })
+    damage_types_map = {}
+    for did, msg, scaling, exh, eff, dmsg in damage_entries:
+        body = {
+            "message_id": msg,
+            "scaling": scaling,
+            "exhaustion": exh,
+            "effects": eff,
+            "death_message_type": dmsg,
+        }
+        damage_types_map[did] = json.dumps(body, separators=(",", ":"))
+        write_json(root / "data/minecraft/damage_type" / f"{did.split(':', 1)[1]}.json", body)
+    write_json(root / "damage-types.json", damage_types_map)
+    write_json(root / "damage-tags.json", {
+        "minecraft:bypasses_armor": json.dumps({"values": ["minecraft:fall", "minecraft:starve", "minecraft:out_of_world", "minecraft:drown"]}, separators=(",", ":")),
+    })
+    write_json(root / "landing-definitions.json", {
+        spec["name"]: {"fall": "Block", "bounce": False} for spec in BLOCKS_SPEC
+    })
+    write_json(root / "entity-types.json", {
+        "minecraft:player": {
+            "width": 0.6,
+            "height": 1.8,
+            "eye_height": 1.62,
+            "category": "misc",
+            "fire_immune": False,
+            "attributes": {aid: d for aid, d, _, _ in attrs},
+        }
+    })
     write_json(root / "entity-models.json", {})
+
+    def reg_entries(names: list[str]) -> dict[str, Any]:
+        return {"entries": {n: {"protocol_id": idx} for idx, n in enumerate(names)}}
+
+    write_json(root / "registries.json", {
+        "minecraft:block": reg_entries([s["name"] for s in BLOCKS_SPEC]),
+        "minecraft:item": reg_entries(["minecraft:air"] + all_item_ids),
+        "minecraft:fluid": reg_entries(["minecraft:empty", "minecraft:flowing_water", "minecraft:water", "minecraft:flowing_lava", "minecraft:lava"]),
+        "minecraft:entity_type": reg_entries(["minecraft:player"]),
+        "minecraft:attribute": reg_entries([aid for aid, _, _, _ in attrs]),
+        "minecraft:block_entity_type": reg_entries(["minecraft:furnace"]),
+        "minecraft:command_argument_type": reg_entries(["brigadier:bool", "brigadier:float", "brigadier:double", "brigadier:integer", "brigadier:long", "brigadier:string"]),
+        "minecraft:map_decoration_type": reg_entries(["minecraft:player"]),
+        "minecraft:mob_effect": reg_entries(["minecraft:speed"]),
+        "minecraft:particle_type": reg_entries(["minecraft:flame"]),
+        "minecraft:potion": reg_entries(["minecraft:water"]),
+        "minecraft:sound_event": reg_entries(["minecraft:block.stone.break", "minecraft:block.stone.step", "minecraft:block.stone.place", "minecraft:block.stone.hit", "minecraft:block.stone.fall"]),
+        "minecraft:menu": reg_entries(["minecraft:crafting", "minecraft:furnace"]),
+        "minecraft:data_component_type": reg_entries(["minecraft:max_stack_size", "minecraft:max_damage", "minecraft:damage", "minecraft:tool", "minecraft:food", "minecraft:rarity"]),
+    })
+    write_json(root / "commands.json", {"type": "root", "children": {}})
+    splashes = root / "assets/minecraft/texts/splashes.txt"
+    splashes.parent.mkdir(parents=True, exist_ok=True)
+    splashes.write_text("RuCraft in Rust!\nMojang-free assets!\nOpen Source Engine!\n", encoding="utf-8")
+    write_json(root / "assets/minecraft/lang/en_us.json", {})
 
     # 9. Assets metadata + Data packs (dimensions, biomes, fluid tags, starter recipes)
     write_json(root / "assets/pack.mcmeta", {"pack": {"pack_format": 64, "description": "RuCraft Built-in Resources"}})
