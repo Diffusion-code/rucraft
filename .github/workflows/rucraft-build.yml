@@ -85,6 +85,7 @@ jobs:
           cp LICENSE THIRD_PARTY_NOTICES.md dist/rucraft-windows-x64/
           python tools/ci/fetch_dxc.py dist/rucraft-windows-x64
           python -u tools/generate_rucraft_resources.py dist/rucraft-windows-x64/resources
+          python -u tools/ci/fetch_pixel_perfection.py dist/rucraft-windows-x64/resources
           SOCK="$RUNNER_TEMP/rucraft_ctl.json"
           CTL="./dist/rucraft-windows-x64/horizon-ctl.exe"
           rm -f "$SOCK" "$RUNNER_TEMP/rucraft_ctl.log"

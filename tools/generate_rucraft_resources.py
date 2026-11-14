@@ -1583,6 +1583,16 @@ def generate_tables(root: pathlib.Path) -> None:
     write_json(root / "data/minecraft/tags/fluid/lava.json", {"values": ["minecraft:lava", "minecraft:flowing_lava"]})
     (root / "data/minecraft/tags/entity_type").mkdir(parents=True, exist_ok=True)
 
+    overworld_attrs = {
+        "minecraft:visual/sky_color": "#78a7ff",
+        "minecraft:visual/fog_color": "#c0d8ff",
+        "minecraft:visual/cloud_color": "#ccffffff",
+        "minecraft:visual/cloud_height": 192.33,
+        "minecraft:visual/water_fog_color": "#050533",
+        "minecraft:visual/sky_light_color": "#ffffff",
+        "minecraft:visual/sky_light_factor": 1.0,
+        "minecraft:visual/sunrise_sunset_color": "#00000000",
+    }
     dim_base = {
         "has_skylight": True,
         "has_ceiling": False,
@@ -1602,12 +1612,24 @@ def generate_tables(root: pathlib.Path) -> None:
         "monster_spawn_block_light_limit": 0,
         "skybox": "overworld",
         "cardinal_light": "default",
-        "attributes": {},
+        "attributes": overworld_attrs,
         "timelines": [],
     }
+    nether_attrs = {
+        "minecraft:visual/sky_color": "#330808",
+        "minecraft:visual/fog_color": "#330808",
+        "minecraft:visual/cloud_color": "#00000000",
+        "minecraft:visual/water_fog_color": "#330808",
+    }
+    end_attrs = {
+        "minecraft:visual/sky_color": "#000000",
+        "minecraft:visual/fog_color": "#18121e",
+        "minecraft:visual/cloud_color": "#00000000",
+        "minecraft:visual/water_fog_color": "#050533",
+    }
     write_json(root / "data/minecraft/dimension_type/overworld.json", dim_base)
-    write_json(root / "data/minecraft/dimension_type/the_nether.json", {**dim_base, "has_skylight": False, "has_ceiling": True, "ultrawarm": True, "natural": False, "coordinate_scale": 8.0, "min_y": 0, "height": 256, "logical_height": 128, "ambient_light": 0.1, "skybox": "none", "cardinal_light": "nether"})
-    write_json(root / "data/minecraft/dimension_type/the_end.json", {**dim_base, "has_skylight": True, "natural": False, "min_y": 0, "height": 256, "logical_height": 256, "skybox": "end"})
+    write_json(root / "data/minecraft/dimension_type/the_nether.json", {**dim_base, "has_skylight": False, "has_ceiling": True, "ultrawarm": True, "natural": False, "coordinate_scale": 8.0, "min_y": 0, "height": 256, "logical_height": 128, "ambient_light": 0.1, "skybox": "none", "cardinal_light": "nether", "attributes": nether_attrs})
+    write_json(root / "data/minecraft/dimension_type/the_end.json", {**dim_base, "has_skylight": True, "natural": False, "min_y": 0, "height": 256, "logical_height": 256, "skybox": "end", "attributes": end_attrs})
 
     write_json(root / "data/minecraft/worldgen/biome/plains.json", {
         "has_precipitation": True,
@@ -1619,7 +1641,7 @@ def generate_tables(root: pathlib.Path) -> None:
             "water_color": 4159204,
             "water_fog_color": 329011,
         },
-        "attributes": {},
+        "attributes": overworld_attrs,
         "spawners": {},
         "spawn_costs": {},
     })
@@ -1648,6 +1670,92 @@ def generate_tables(root: pathlib.Path) -> None:
     write_json(root / "horizon-prepare.json", {"output_version": OUTPUT_VERSION})
 
 
+def _cuboid_part(pose, x0, y0, z0, dx, dy, dz, u, v, tw=64.0, th=64.0, children=None):
+    x1, y1, z1 = x0 + dx, y0 + dy, z0 + dz
+    def quad(pts, u0, v0, u1, v1, n):
+        return [
+            [pts[0][0], pts[0][1], pts[0][2], u0 / tw, v0 / th],
+            [pts[1][0], pts[1][1], pts[1][2], u1 / tw, v0 / th],
+            [pts[2][0], pts[2][1], pts[2][2], u1 / tw, v1 / th],
+            [pts[3][0], pts[3][1], pts[3][2], u0 / tw, v1 / th],
+        ], n
+
+    faces = [
+        quad([(x1, y0, z0), (x0, y0, z0), (x0, y0, z1), (x1, y0, z1)], u + dz, v, u + dz + dx, v + dz, [0, -1, 0]),
+        quad([(x0, y1, z1), (x1, y1, z1), (x1, y1, z0), (x0, y1, z0)], u + dz + dx, v + dz, u + dz + dx + dx, v, [0, 1, 0]),
+        quad([(x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0)], u + dz, v + dz, u + dz + dx, v + dz + dy, [0, 0, -1]),
+        quad([(x1, y0, z1), (x0, y0, z1), (x0, y1, z1), (x1, y1, z1)], u + dz + dx + dz, v + dz, u + dz + dx + dz + dx, v + dz + dy, [0, 0, 1]),
+        quad([(x0, y0, z1), (x0, y0, z0), (x0, y1, z0), (x0, y1, z1)], u, v + dz, u + dz, v + dz + dy, [-1, 0, 0]),
+        quad([(x1, y0, z0), (x1, y0, z1), (x1, y1, z1), (x1, y1, z0)], u + dz + dx, v + dz, u + dz + dx + dz, v + dz + dy, [1, 0, 0]),
+    ]
+    return {
+        "pose": pose,
+        "polygons": [f[0] for f in faces],
+        "normals": [f[1] for f in faces],
+        "children": children or {},
+    }
+
+
+def generate_entity_models(root: pathlib.Path) -> None:
+    def player_model(arm_w: int):
+        off = -3 if arm_w == 4 else -2
+        return {
+            "pose": [0, 0, 0, 0, 0, 0, 1, 1, 1],
+            "polygons": [],
+            "normals": [],
+            "children": {
+                "head": _cuboid_part([0, 0, 0, 0, 0, 0, 1, 1, 1], -4, -8, -4, 8, 8, 8, 0, 0),
+                "body": _cuboid_part([0, 0, 0, 0, 0, 0, 1, 1, 1], -4, 0, -2, 8, 12, 4, 16, 16),
+                "right_arm": _cuboid_part([-5, 2, 0, 0, 0, 0, 1, 1, 1], off, -2, -2, arm_w, 12, 4, 40, 16),
+                "left_arm": _cuboid_part([5, 2, 0, 0, 0, 0, 1, 1, 1], -1, -2, -2, arm_w, 12, 4, 32, 48),
+                "right_leg": _cuboid_part([-1.9, 12, 0, 0, 0, 0, 1, 1, 1], -2, 0, -2, 4, 12, 4, 0, 16),
+                "left_leg": _cuboid_part([1.9, 12, 0, 0, 0, 0, 1, 1, 1], -2, 0, -2, 4, 12, 4, 16, 48),
+            },
+        }
+
+    write_json(root / "entity-models.json", {
+        "minecraft:player#main": player_model(4),
+        "minecraft:player_slim#main": player_model(3),
+    })
+
+
+def generate_title_logo(root: pathlib.Path) -> None:
+    glyphs = {
+        "R": ["#### ", "#   #", "#   #", "#### ", "# #  ", "#  # ", "#   #"],
+        "U": ["#   #", "#   #", "#   #", "#   #", "#   #", "#   #", " ### "],
+        "C": [" ####", "#    ", "#    ", "#    ", "#    ", "#    ", " ####"],
+        "A": [" ### ", "#   #", "#   #", "#####", "#   #", "#   #", "#   #"],
+        "F": ["#####", "#    ", "#    ", "#### ", "#    ", "#    ", "#    "],
+        "T": ["#####", "  #  ", "  #  ", "  #  ", "  #  ", "  #  ", "  #  "],
+    }
+    w, h = 256, 48
+    grid = [(0, 0, 0, 0)] * (w * h)
+    scale = 4
+    word = "RUCRAFT"
+    start_x = (w - len(word) * 6 * scale) // 2
+    start_y = 8
+    for idx, ch in enumerate(word):
+        pat = glyphs[ch]
+        ox = start_x + idx * 6 * scale
+        for ry, row in enumerate(pat):
+            for rx, c in enumerate(row):
+                if c != "#":
+                    continue
+                for dy in range(scale):
+                    for dx in range(scale):
+                        px, py = ox + rx * scale + dx, start_y + ry * scale + dy
+                        if 0 <= px + 2 < w and 0 <= py + 2 < h:
+                            grid[(py + 2) * w + (px + 2)] = (34, 34, 38, 255)
+                for dy in range(scale):
+                    for dx in range(scale):
+                        px, py = ox + rx * scale + dx, start_y + ry * scale + dy
+                        if 0 <= px < w and 0 <= py < h:
+                            shade = 235 - ry * 12
+                            grid[py * w + px] = (shade, shade, min(255, shade + 10), 255) if ry < 5 else (168, 174, 184, 255)
+    write_png(root / "assets/minecraft/textures/gui/title/minecraft.png", w, h, grid)
+    write_png(root / "assets/minecraft/textures/gui/title/edition.png", 256, 32, [(0, 0, 0, 0)] * (256 * 32))
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print("Usage: generate_rucraft_resources.py <output_resources_dir>", file=sys.stderr)
@@ -1658,6 +1766,8 @@ def main() -> int:
     generate_textures(root)
     generate_models_and_blockstates(root)
     generate_tables(root)
+    generate_entity_models(root)
+    generate_title_logo(root)
     print("[RuCraft] Resource generation complete.", flush=True)
     return 0
 
