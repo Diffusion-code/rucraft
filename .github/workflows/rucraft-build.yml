@@ -85,10 +85,22 @@ jobs:
           cp LICENSE THIRD_PARTY_NOTICES.md dist/rucraft-windows-x64/
           python tools/ci/fetch_dxc.py dist/rucraft-windows-x64
           python -u tools/generate_rucraft_resources.py dist/rucraft-windows-x64/resources
-          ./dist/rucraft-windows-x64/rucraft-client.exe --headless --game-dir "$RUNNER_TEMP/rucraft_smoke" --home "$RUNNER_TEMP/rucraft_home" --resources dist/rucraft-windows-x64/resources --world smoke --frames 150 --smoke-report smoke-report.json --timeout-seconds 60 > smoke.log 2>&1 || { cat smoke.log; rm -f smoke.log smoke-report.json; exit 1; }
-          cat smoke-report.json
-          python -c "import json, sys; r = json.load(open('smoke-report.json')); assert r.get('error') is None and r.get('player') is not None and r.get('chunks', 0) > 0, r" || { cat smoke.log; rm -f smoke.log smoke-report.json; exit 1; }
-          rm -f smoke.log smoke-report.json
+          SOCK="$RUNNER_TEMP/rucraft_ctl.json"
+          CTL="./dist/rucraft-windows-x64/horizon-ctl.exe"
+          rm -f "$SOCK" "$RUNNER_TEMP/rucraft_ctl.log"
+          (
+            set -e
+            "$CTL" --socket "$SOCK" launch --game ./dist/rucraft-windows-x64/rucraft-client.exe --headless --world smoke --game-dir "$RUNNER_TEMP/rucraft_smoke" --home "$RUNNER_TEMP/rucraft_home" --resources dist/rucraft-windows-x64/resources --timeout-seconds 60
+            "$CTL" --socket "$SOCK" wait-for loaded --timeout 45
+            "$CTL" --socket "$SOCK" wait 5
+            "$CTL" --socket "$SOCK" state
+            "$CTL" --socket "$SOCK" quit
+          ) || {
+            cat "$RUNNER_TEMP/rucraft_ctl.log" 2>/dev/null || true
+            "$CTL" --socket "$SOCK" quit >/dev/null 2>&1 || true
+            exit 1
+          }
+          rm -f "$SOCK" "$RUNNER_TEMP/rucraft_ctl.log"
           cd dist
           7z a -tzip rucraft-windows-x64.zip rucraft-windows-x64 > /dev/null
           ls -lh rucraft-windows-x64.zip
