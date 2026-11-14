@@ -1,0 +1,61 @@
+name: RuCraft Windows Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rucraft-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      RUSTFLAGS: -C target-feature=+crt-static
+      HORIZON_VERSION: 0.1.0-rucraft
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: rucraft-windows-x64
+          save-if: true
+          cache-all-crates: true
+
+      - name: Build Windows binaries
+        shell: bash
+        run: |
+          cargo build --release --locked \
+            -p horizon-official --bin horizon-official \
+            -p horizon-client-lib --bin horizon-ctl \
+            -p horizon-server --bin horizon-server
+
+      - name: Package Windows build
+        shell: bash
+        run: |
+          mkdir -p dist/rucraft-windows-x64
+          cp target/release/horizon-official.exe dist/rucraft-windows-x64/rucraft-client.exe
+          cp target/release/horizon-official.exe dist/rucraft-windows-x64/horizon-client.exe
+          cp target/release/horizon-server.exe dist/rucraft-windows-x64/horizon-server.exe
+          cp target/release/horizon-ctl.exe dist/rucraft-windows-x64/horizon-ctl.exe
+          cp LICENSE THIRD_PARTY_NOTICES.md dist/rucraft-windows-x64/
+          python tools/ci/fetch_dxc.py dist/rucraft-windows-x64
+          cd dist
+          7z a -tzip rucraft-windows-x64.zip rucraft-windows-x64 > /dev/null
+          ls -lh rucraft-windows-x64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rucraft-windows-x64
+          path: dist/rucraft-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 14
