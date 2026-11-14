@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-windows:
+  build-binaries:
     runs-on: windows-latest
     timeout-minutes: 45
     env:
@@ -23,30 +23,65 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache compiled Windows binaries
+        id: exe-cache
+        uses: actions/cache@v4
+        with:
+          path: bin-stage
+          key: rucraft-win-exe-${{ hashFiles('Cargo.toml', 'Cargo.lock', 'crates/**') }}
+
       - uses: dtolnay/rust-toolchain@stable
+        if: steps.exe-cache.outputs.cache-hit != 'true'
 
       - uses: Swatinem/rust-cache@v2
+        if: steps.exe-cache.outputs.cache-hit != 'true'
         with:
           shared-key: rucraft-windows-x64
           save-if: true
           cache-all-crates: true
 
       - name: Build Windows binaries
+        if: steps.exe-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           cargo build --release --locked \
             -p horizon-official --bin horizon-official \
             -p horizon-client-lib --bin horizon-ctl \
             -p horizon-server --bin horizon-server
+          mkdir -p bin-stage
+          cp target/release/horizon-official.exe bin-stage/horizon-official.exe
+          cp target/release/horizon-server.exe bin-stage/horizon-server.exe
+          cp target/release/horizon-ctl.exe bin-stage/horizon-ctl.exe
+
+      - name: Publish binary stage
+        uses: actions/upload-artifact@v4
+        with:
+          name: rucraft-win-binaries
+          path: bin-stage/*.exe
+          if-no-files-found: error
+          retention-days: 1
+
+  package-windows:
+    needs: build-binaries
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download compiled Windows binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: rucraft-win-binaries
+          path: bin-stage
 
       - name: Package Windows build
         shell: bash
         run: |
           mkdir -p dist/rucraft-windows-x64
-          cp target/release/horizon-official.exe dist/rucraft-windows-x64/rucraft-client.exe
-          cp target/release/horizon-official.exe dist/rucraft-windows-x64/horizon-client.exe
-          cp target/release/horizon-server.exe dist/rucraft-windows-x64/horizon-server.exe
-          cp target/release/horizon-ctl.exe dist/rucraft-windows-x64/horizon-ctl.exe
+          cp bin-stage/horizon-official.exe dist/rucraft-windows-x64/rucraft-client.exe
+          cp bin-stage/horizon-official.exe dist/rucraft-windows-x64/horizon-client.exe
+          cp bin-stage/horizon-server.exe dist/rucraft-windows-x64/horizon-server.exe
+          cp bin-stage/horizon-ctl.exe dist/rucraft-windows-x64/horizon-ctl.exe
           cp LICENSE THIRD_PARTY_NOTICES.md dist/rucraft-windows-x64/
           python tools/ci/fetch_dxc.py dist/rucraft-windows-x64
           python -u tools/generate_rucraft_resources.py dist/rucraft-windows-x64/resources
