@@ -900,7 +900,8 @@ def generate_font_and_gui(root: pathlib.Path) -> None:
     write_png(sprites / "widget/slider_highlighted.png", 8, 20, box(8, 20, (164, 186, 224, 255), (240, 244, 255, 255)))
 
 
-def _cube_all_model(tex: str) -> dict[str, Any]:
+def _cube_all_model(tex: str, tint: bool = False) -> dict[str, Any]:
+    face_extra = {"tintindex": 0} if tint else {}
     return {
         "textures": {"all": tex, "particle": tex},
         "elements": [
@@ -908,7 +909,7 @@ def _cube_all_model(tex: str) -> dict[str, Any]:
                 "from": [0, 0, 0],
                 "to": [16, 16, 16],
                 "faces": {
-                    d: {"uv": [0, 0, 16, 16], "texture": "#all", "cullface": d}
+                    d: {"uv": [0, 0, 16, 16], "texture": "#all", "cullface": d, **face_extra}
                     for d in ("down", "up", "north", "south", "west", "east")
                 },
             }
@@ -916,7 +917,8 @@ def _cube_all_model(tex: str) -> dict[str, Any]:
     }
 
 
-def _cube_sided_model(top: str, bottom: str, north: str, south: str, east: str, west: str) -> dict[str, Any]:
+def _cube_sided_model(top: str, bottom: str, north: str, south: str, east: str, west: str, tint_top: bool = False) -> dict[str, Any]:
+    up_extra = {"tintindex": 0} if tint_top else {}
     return {
         "textures": {"top": top, "bottom": bottom, "north": north, "south": south, "east": east, "west": west, "particle": north},
         "elements": [
@@ -924,7 +926,7 @@ def _cube_sided_model(top: str, bottom: str, north: str, south: str, east: str, 
                 "from": [0, 0, 0],
                 "to": [16, 16, 16],
                 "faces": {
-                    "up": {"uv": [0, 0, 16, 16], "texture": "#top", "cullface": "up"},
+                    "up": {"uv": [0, 0, 16, 16], "texture": "#top", "cullface": "up", **up_extra},
                     "down": {"uv": [0, 0, 16, 16], "texture": "#bottom", "cullface": "down"},
                     "north": {"uv": [0, 0, 16, 16], "texture": "#north", "cullface": "north"},
                     "south": {"uv": [0, 0, 16, 16], "texture": "#south", "cullface": "south"},
@@ -947,7 +949,7 @@ def generate_models_and_blockstates(root: pathlib.Path) -> None:
         "oak_leaves", "bricks", "glass", "coal_ore", "iron_ore",
     ]
     for name in simple_blocks:
-        write_json(mb / f"{name}.json", _cube_all_model(f"minecraft:block/{name}"))
+        write_json(mb / f"{name}.json", _cube_all_model(f"minecraft:block/{name}", tint=(name == "oak_leaves")))
         write_json(bs / f"{name}.json", {"variants": {"": {"model": f"minecraft:block/{name}"}}})
 
     write_json(mb / "snow_block.json", _cube_all_model("minecraft:block/snow"))
@@ -960,6 +962,7 @@ def generate_models_and_blockstates(root: pathlib.Path) -> None:
             "minecraft:block/grass_block_top", "minecraft:block/dirt",
             "minecraft:block/grass_block_side", "minecraft:block/grass_block_side",
             "minecraft:block/grass_block_side", "minecraft:block/grass_block_side",
+            tint_top=True,
         ),
     )
     write_json(
@@ -1063,8 +1066,8 @@ def generate_models_and_blockstates(root: pathlib.Path) -> None:
                     "to": [15.2, 16, 8],
                     "rotation": {"origin": [8, 8, 8], "axis": "y", "angle": 45, "rescale": True},
                     "faces": {
-                        "north": {"uv": [0, 0, 16, 16], "texture": "#cross"},
-                        "south": {"uv": [0, 0, 16, 16], "texture": "#cross"},
+                        "north": {"uv": [0, 0, 16, 16], "texture": "#cross", "tintindex": 0},
+                        "south": {"uv": [0, 0, 16, 16], "texture": "#cross", "tintindex": 0},
                     },
                 },
                 {
@@ -1072,8 +1075,8 @@ def generate_models_and_blockstates(root: pathlib.Path) -> None:
                     "to": [8, 16, 15.2],
                     "rotation": {"origin": [8, 8, 8], "axis": "y", "angle": 45, "rescale": True},
                     "faces": {
-                        "west": {"uv": [0, 0, 16, 16], "texture": "#cross"},
-                        "east": {"uv": [0, 0, 16, 16], "texture": "#cross"},
+                        "west": {"uv": [0, 0, 16, 16], "texture": "#cross", "tintindex": 0},
+                        "east": {"uv": [0, 0, 16, 16], "texture": "#cross", "tintindex": 0},
                     },
                 },
             ],
