@@ -84,8 +84,10 @@ jobs:
           cp bin-stage/horizon-ctl.exe dist/rucraft-windows-x64/horizon-ctl.exe
           cp LICENSE THIRD_PARTY_NOTICES.md dist/rucraft-windows-x64/
           python tools/ci/fetch_dxc.py dist/rucraft-windows-x64
+          python -m pip install --quiet pillow
           python -u tools/generate_rucraft_resources.py dist/rucraft-windows-x64/resources
           python -u tools/ci/fetch_pixel_perfection.py dist/rucraft-windows-x64/resources
+          python -u tools/ci/fetch_faithful_16x.py dist/rucraft-windows-x64/resources
           SOCK="$RUNNER_TEMP/rucraft_ctl.json"
           CTL="./dist/rucraft-windows-x64/horizon-ctl.exe"
           rm -f "$SOCK" "$RUNNER_TEMP/rucraft_ctl.log"
