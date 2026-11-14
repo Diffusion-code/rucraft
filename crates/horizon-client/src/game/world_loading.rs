@@ -887,7 +887,8 @@ pub(super) fn make_streaming(
             res.threads(),
         )
     } else if (options.test_terrain && dim == Dim::Overworld)
-        || !options.resources.join("worldgen/noise_settings").is_dir()
+        || (!options.resources.join("worldgen/settings.json").is_file()
+            && !options.resources.join("worldgen/noise_settings").is_dir())
     {
         let inner = Arc::new(TestTerrain::new(pack.assets.registry, res.biomes())?);
         Streaming::new(
