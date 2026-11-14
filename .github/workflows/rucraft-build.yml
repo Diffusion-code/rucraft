@@ -28,7 +28,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: bin-stage
-          key: rucraft-win-exe-${{ hashFiles('Cargo.toml', 'Cargo.lock', 'crates/**') }}
+          key: rucraft-win-exe-v2-${{ hashFiles('Cargo.toml', 'Cargo.lock', 'crates/**') }}
 
       - uses: dtolnay/rust-toolchain@stable
         if: steps.exe-cache.outputs.cache-hit != 'true'
@@ -47,11 +47,13 @@ jobs:
           cargo build --release --locked \
             -p horizon-official --bin horizon-official \
             -p horizon-client-lib --bin horizon-ctl \
-            -p horizon-server --bin horizon-server
+            -p horizon-server --bin horizon-server \
+            -p horizon-prepare --bin horizon-prepare
           mkdir -p bin-stage
           cp target/release/horizon-official.exe bin-stage/horizon-official.exe
           cp target/release/horizon-server.exe bin-stage/horizon-server.exe
           cp target/release/horizon-ctl.exe bin-stage/horizon-ctl.exe
+          cp target/release/horizon-prepare.exe bin-stage/horizon-prepare.exe
 
       - name: Publish binary stage
         uses: actions/upload-artifact@v4
@@ -82,7 +84,15 @@ jobs:
           cp bin-stage/horizon-official.exe dist/rucraft-windows-x64/horizon-client.exe
           cp bin-stage/horizon-server.exe dist/rucraft-windows-x64/horizon-server.exe
           cp bin-stage/horizon-ctl.exe dist/rucraft-windows-x64/horizon-ctl.exe
-          cp LICENSE THIRD_PARTY_NOTICES.md dist/rucraft-windows-x64/
+          cp bin-stage/horizon-prepare.exe dist/rucraft-windows-x64/horizon-prepare.exe
+          cp LICENSE THIRD_PARTY_NOTICES.md research-lock.json dist/rucraft-windows-x64/
+          mkdir -p dist/rucraft-windows-x64/mods/horizon/src/test
+          cp -r mods/horizon/src/test/java dist/rucraft-windows-x64/mods/horizon/src/test/
+          mkdir -p dist/rucraft-windows-x64/crates
+          cp -r crates/horizon-prepare dist/rucraft-windows-x64/crates/
+          cp -r tools dist/rucraft-windows-x64/
+          printf '@echo off\r\ncd /d "%%~dp0"\r\nstart "" "%%~dp0rucraft-client.exe" --resources "%%~dp0resources" --home "%%~dp0home" --game-dir "%%~dp0game" %%*\r\n' > dist/rucraft-windows-x64/RuCraft.bat
+          ./dist/rucraft-windows-x64/horizon-prepare.exe --help > /dev/null
           python tools/ci/fetch_dxc.py dist/rucraft-windows-x64
           python -m pip install --quiet pillow
           python -u tools/generate_rucraft_resources.py dist/rucraft-windows-x64/resources
