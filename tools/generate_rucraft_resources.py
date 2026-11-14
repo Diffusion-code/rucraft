@@ -646,6 +646,7 @@ def generate_textures(root: pathlib.Path) -> None:
         "furnace_top": gen_stone(None, 205),
         "water_still": gen_fluid((54, 118, 232), 210, 701),
         "water_flow": gen_fluid((64, 128, 240), 210, 702),
+        "water_overlay": gen_fluid((54, 118, 232), 140, 705),
         "lava_still": gen_fluid((238, 108, 28), 255, 703),
         "lava_flow": gen_fluid((246, 124, 34), 255, 704),
     }
@@ -1204,7 +1205,7 @@ def generate_tables(root: pathlib.Path) -> None:
             "item": spec["name"] if spec.get("has_item", True) else "minecraft:air",
         })
         if spec.get("has_item", True):
-            bb_items[spec["name"]] = {"class": ["BlockItem"], "fields": {}}
+            bb_items[spec["name"]] = {"class": ["BlockItem"], "fields": {"block": spec["name"]}}
 
     bb_states = []
     for entry in expanded:
@@ -1344,9 +1345,9 @@ def generate_tables(root: pathlib.Path) -> None:
     write_json(root / "model-states.json", model_states)
     write_json(root / "render-definitions.json", render_defs)
 
-    # 6. block-tags.json
+    # 6. block-tags.json (BTreeMap<String, String> where each value is JSON '{"values":[...]}')
     solid_names = [s["name"] for s in BLOCKS_SPEC if s.get("solid", True)]
-    write_json(root / "block-tags.json", {
+    raw_block_tags = {
         "minecraft:blocks_motion_in_heightmap": solid_names,
         "minecraft:blocks_motion_in_heightmap_no_leaves": [n for n in solid_names if n != "minecraft:oak_leaves"],
         "minecraft:blocks_fluid_flow": solid_names,
@@ -1362,13 +1363,29 @@ def generate_tables(root: pathlib.Path) -> None:
         "minecraft:inside_step_sound_blocks": [],
         "minecraft:combination_step_sound_blocks": [],
         "minecraft:crystal_sound_blocks": [],
+        "minecraft:impermeable": ["minecraft:glass"],
+        "minecraft:enchantment_power_provider": [],
+        "minecraft:enchantment_power_transmitter": [],
+        "minecraft:triggers_ambient_dried_ghast_block_sounds": [],
+        "minecraft:triggers_ambient_desert_sand_block_sounds": ["minecraft:sand"],
+        "minecraft:required_for_poplar_leaf_ambience": [],
+        "minecraft:triggers_ambient_desert_dry_vegetation_block_sounds": [],
+        "minecraft:terracotta": [],
+        "minecraft:pale_oak_logs": [],
+        "minecraft:infiniburn_overworld": [],
+        "minecraft:infiniburn_nether": [],
+        "minecraft:infiniburn_end": [],
         "minecraft:mineable/pickaxe": ["minecraft:stone", "minecraft:cobblestone", "minecraft:bricks", "minecraft:coal_ore", "minecraft:iron_ore", "minecraft:furnace"],
         "minecraft:mineable/axe": ["minecraft:oak_planks", "minecraft:oak_log", "minecraft:crafting_table"],
         "minecraft:mineable/shovel": ["minecraft:dirt", "minecraft:grass_block", "minecraft:sand", "minecraft:gravel", "minecraft:snow_block"],
         "minecraft:leaves": ["minecraft:oak_leaves"],
         "minecraft:logs": ["minecraft:oak_log"],
         "minecraft:planks": ["minecraft:oak_planks"],
-    })
+    }
+    write_json(
+        root / "block-tags.json",
+        {k: json.dumps({"values": v}, separators=(",", ":")) for k, v in raw_block_tags.items()},
+    )
 
     # 7. items.json + creative-inventory.json + creative-tabs.json
     pick_rules = [{"blocks": ["minecraft:stone", "minecraft:cobblestone", "minecraft:coal_ore", "minecraft:iron_ore", "minecraft:bricks", "minecraft:furnace"], "correct_for_drops": True}]
@@ -1571,6 +1588,8 @@ def generate_tables(root: pathlib.Path) -> None:
         "monster_spawn_block_light_limit": 0,
         "skybox": "overworld",
         "cardinal_light": "default",
+        "attributes": {},
+        "timelines": [],
     }
     write_json(root / "data/minecraft/dimension_type/overworld.json", dim_base)
     write_json(root / "data/minecraft/dimension_type/the_nether.json", {**dim_base, "has_skylight": False, "has_ceiling": True, "ultrawarm": True, "natural": False, "coordinate_scale": 8.0, "min_y": 0, "height": 256, "logical_height": 128, "ambient_light": 0.1, "skybox": "none", "cardinal_light": "nether"})
@@ -1586,6 +1605,7 @@ def generate_tables(root: pathlib.Path) -> None:
             "water_color": 4159204,
             "water_fog_color": 329011,
         },
+        "attributes": {},
         "spawners": {},
         "spawn_costs": {},
     })
