@@ -85,8 +85,10 @@ jobs:
           cp LICENSE THIRD_PARTY_NOTICES.md dist/rucraft-windows-x64/
           python tools/ci/fetch_dxc.py dist/rucraft-windows-x64
           python -u tools/generate_rucraft_resources.py dist/rucraft-windows-x64/resources
-          ./dist/rucraft-windows-x64/rucraft-client.exe --headless --game-dir "$RUNNER_TEMP/rucraft_smoke" --home "$RUNNER_TEMP/rucraft_home" --resources dist/rucraft-windows-x64/resources --world smoke --world-frames 2 --timeout-seconds 45 > smoke.log 2>&1 || { cat smoke.log; rm -f smoke.log; exit 1; }
-          rm -f smoke.log
+          ./dist/rucraft-windows-x64/rucraft-client.exe --headless --game-dir "$RUNNER_TEMP/rucraft_smoke" --home "$RUNNER_TEMP/rucraft_home" --resources dist/rucraft-windows-x64/resources --world smoke --frames 150 --smoke-report smoke-report.json --timeout-seconds 60 > smoke.log 2>&1 || { cat smoke.log; rm -f smoke.log smoke-report.json; exit 1; }
+          cat smoke-report.json
+          python -c "import json, sys; r = json.load(open('smoke-report.json')); assert r.get('error') is None and r.get('player') is not None and r.get('chunks', 0) > 0, r" || { cat smoke.log; rm -f smoke.log smoke-report.json; exit 1; }
+          rm -f smoke.log smoke-report.json
           cd dist
           7z a -tzip rucraft-windows-x64.zip rucraft-windows-x64 > /dev/null
           ls -lh rucraft-windows-x64.zip
